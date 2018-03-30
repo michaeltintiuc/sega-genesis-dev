@@ -28,7 +28,7 @@ If you'd like to trigger each step manually:
 make build -C hello/
 
 # Run binary via retroarch
-make run
+make run -C hello/
 ```
 
 Built with the these awesome tools:
