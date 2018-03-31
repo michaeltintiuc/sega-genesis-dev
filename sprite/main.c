@@ -21,8 +21,8 @@ int main() {
     // if you want but SGDK needs the width as reference
     VDP_loadBMPTileData(moon.image, 1, w / 8, h / 8, w / 8);
 
-	// draw the moon at (12,12)
-	VDP_fillTileMapRectInc(PLAN_B, TILE_ATTR_FULL(PAL1, 0, 0, 0, TILE1), 12, 12, w / 8, h / 8);
+    // draw the moon at (12,12)
+    VDP_fillTileMapRectInc(PLAN_B, TILE_ATTR_FULL(PAL1, 0, 0, 0, TILE1), 12, 12, w / 8, h / 8);
 
     while(1) {
         VDP_waitVSync();
