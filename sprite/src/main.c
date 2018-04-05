@@ -44,7 +44,7 @@ static void updatePhysic();
 static void updateAnim();
 static void updateCamera(fix32 x, fix32 y);
 
-// sprites structure (pointer of Sprite)
+// Array of sprites
 Sprite* sprites[3];
 
 u16 scrollPos;
@@ -61,24 +61,26 @@ fix32 enemyPosx[2];
 fix32 enemyPosy[2];
 s16 enemyXorder[2];
 
-int main()
-{
+int main() {
     u16 palette[64];
     u16 ind;
 
     // disable interrupt when accessing VDP
     SYS_disableInts();
+
     // initialization
     VDP_setScreenWidth320();
 
-#ifdef SOUND_ON
     // init SFX
+#ifdef SOUND_ON
     SND_setPCM_XGM(SFX_JUMP, sonic_jump_sfx, sizeof(sonic_jump_sfx));
     SND_setPCM_XGM(SFX_ROLL, sonic_roll_sfx, sizeof(sonic_roll_sfx));
     SND_setPCM_XGM(SFX_STOP, sonic_stop_sfx, sizeof(sonic_stop_sfx));
+
     // start music
     SND_startPlay_XGM(sonic_music);
 #endif
+
     // init sprites engine
     SPR_init(16, 256, 256);
 
@@ -86,16 +88,17 @@ int main()
     VDP_setPlanSize(64, 32);
     VDP_setPaletteColors(0, (u16*) palette_black, 64);
 
-    // load background
+    // load and draw foreground
 	ind = TILE_USERINDEX;
 	Map *map = unpackMap(bga_image.map, NULL);
 	VDP_loadTileSet(bga_image.tileset, ind, TRUE);
 	VDP_setMapEx(PLAN_A, map, TILE_ATTR_FULL(PAL1, 1, FALSE, FALSE, ind), 0, 0, 0, 0, 320 >> 3, 32);
 	ind += bga_image.tileset->numTile;
 
+    // load and draw background
 	VDP_drawImageEx(PLAN_B, &bgb_image, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, ind), 0, 0, FALSE, TRUE);
 
-    // VDP process done, we can re enable interrupts
+    // VDP process done, we can reenable interrupts
     SYS_enableInts();
 
     camposx = -1;
@@ -114,11 +117,12 @@ int main()
     enemyXorder[0] = 1;
     enemyXorder[1] = -1;
 
-    // init scrolling
+    // set camera
     updateCamera(FIX32(0), FIX32(0));
 
     // init sonic sprite
     sprites[0] = SPR_addSpriteEx(&sonic_sprite, fix32ToInt(posx - camposx), fix32ToInt(posy - camposy), TILE_ATTR(PAL2, 0, FALSE, FALSE), 0, SPRITE_FLAGS);
+
     // init enemies sprites
     sprites[1] = SPR_addSpriteEx(&enemies_sprite, fix32ToInt(enemyPosx[0] - camposx), fix32ToInt(enemyPosy[0] - camposy), TILE_ATTR(PAL3, 1, FALSE, FALSE), 1, SPRITE_FLAGS);
     sprites[2] = SPR_addSpriteEx(&enemies_sprite, fix32ToInt(enemyPosx[1] - camposx), fix32ToInt(enemyPosy[1] - camposy), TILE_ATTR(PAL3, 1, FALSE, FALSE), 2, SPRITE_FLAGS);
@@ -127,6 +131,7 @@ int main()
     SPR_setAnim(sprites[1], 1);
     SPR_setAnim(sprites[2], 0);
 
+    // sort sprites
 	SPR_setYSorting(sprites[0], 1);
 	SPR_setYSorting(sprites[1], 0);
 	SPR_setYSorting(sprites[2], 0);
@@ -145,15 +150,14 @@ int main()
 
     JOY_setEventHandler(joyEvent);
 
-    while(TRUE)
-    {
+    while(TRUE) {
         handleInput();
 
         updatePhysic();
         updateAnim();
 
         if (movx > 0 && posx > FIX32(240)) {
-            scrollPos = ((fix32ToInt(posx + PLY_POSX) >> 3) - 1) & 63;
+            scrollPos = ((fix32ToInt(posx + FIX32(80)) >> 3)) & 63;
             VDP_setMapEx(PLAN_A, map, TILE_ATTR_FULL(PAL1, 1, FALSE, FALSE, TILE_USERINDEX), scrollPos, 0, scrollPos, 0, 1, 32);
         }
 
@@ -168,59 +172,43 @@ int main()
     return 0;
 }
 
-static void updatePhysic()
-{
+static void updatePhysic() {
     u16 i;
+    fix32 px_scr, py_scr;
+    fix32 npx_cam, npy_cam;
 
     // sonic physic
-    if (xorder > 0)
-    {
+    if (xorder > 0) {
         movx += ACCEL;
         // going opposite side, quick breaking
         if (movx < 0) movx += ACCEL;
-
         if (movx >= MAX_SPEED) movx = MAX_SPEED;
-    }
-    else if (xorder < 0)
-    {
+    } else if (xorder < 0) {
         movx -= ACCEL;
         // going opposite side, quick breaking
         if (movx > 0) movx -= ACCEL;
-
         if (movx <= -MAX_SPEED) movx = -MAX_SPEED;
-    }
-    else
-    {
-        if ((movx < FIX32(0.1)) && (movx > FIX32(-0.1)))
-            movx = 0;
-        else if ((movx < FIX32(0.3)) && (movx > FIX32(-0.3)))
-            movx -= movx >> 2;
-        else if ((movx < FIX32(1)) && (movx > FIX32(-1)))
-            movx -= movx >> 3;
-        else
-            movx -= movx >> 4;
+    } else {
+        if ((movx < FIX32(0.1)) && (movx > FIX32(-0.1))) movx = 0;
+        else if ((movx < FIX32(0.3)) && (movx > FIX32(-0.3))) movx -= movx >> 2;
+        else if ((movx < FIX32(1)) && (movx > FIX32(-1))) movx -= movx >> 3;
+        else movx -= movx >> 4;
     }
 
     posx += movx;
     posy += movy;
 
-    if (movy)
-    {
-        if (posy > MAX_POSY)
-        {
+    if (movy) {
+        if (posy > MAX_POSY) {
             posy = MAX_POSY;
             movy = 0;
-        }
-        else movy += GRAVITY;
+        } else movy += GRAVITY;
     }
 
-    if (posx >= MAX_POSX)
-    {
+    if (posx >= MAX_POSX) {
         posx = MAX_POSX;
         movx = 0;
-    }
-    else if (posx <= MIN_POSX)
-    {
+    } else if (posx <= MIN_POSX) {
         posx = MIN_POSX;
         movx = 0;
     }
@@ -230,14 +218,10 @@ static void updatePhysic()
     else enemyPosx[0] -= FIX32(1.5);
     if (enemyXorder[1] > 0) enemyPosx[1] += FIX32(1.5);
     else enemyPosx[1] -= FIX32(1.5);
-    for(i = 0; i < 2; i++)
-    {
-        if ((enemyPosx[i] >= MAX_POSX) || (enemyPosx[i] <= MIN_POSX))
-            enemyXorder[i] = -enemyXorder[i];
-    }
 
-    fix32 px_scr, py_scr;
-    fix32 npx_cam, npy_cam;
+    for(i = 0; i < 2; i++) {
+        if ((enemyPosx[i] >= MAX_POSX) || (enemyPosx[i] <= MIN_POSX)) enemyXorder[i] = -enemyXorder[i];
+    }
 
     // get sprite position on screen
     px_scr = posx - camposx;
@@ -247,6 +231,7 @@ static void updatePhysic()
     if (px_scr > FIX32(240)) npx_cam = posx - FIX32(240);
     else if (px_scr < FIX32(40)) npx_cam = posx - FIX32(40);
     else npx_cam = camposx;
+
     if (py_scr > FIX32(160)) npy_cam = posy - FIX32(160);
     else if (py_scr < FIX32(100)) npy_cam = posy - FIX32(100);
     else npy_cam = camposy;
@@ -254,12 +239,14 @@ static void updatePhysic()
     // clip camera position
     if (npx_cam < FIX32(0)) npx_cam = FIX32(0);
     else if (npx_cam > MAX_POSX) npx_cam = MAX_POSX;
+
     if (npy_cam < FIX32(0)) npy_cam = FIX32(0);
     else if (npy_cam > FIX32(100)) npy_cam = FIX32(100);
 
     // set camera position
     updateCamera(npx_cam, npy_cam);
 
+    // debugging
 	/* char str[12]; */
 	/* int pos = fix32ToInt(enemyPosx[0]-camposx); */
 	/* sprintf(str, "%d/%d/%d", fix32ToInt(camposx), (pos), fix32ToInt(posx)); */
@@ -271,34 +258,25 @@ static void updatePhysic()
     SPR_setPosition(sprites[2], fix32ToInt(enemyPosx[1] - camposx), fix32ToInt(enemyPosy[1] - camposy));
 }
 
-static void updateAnim()
-{
+static void updateAnim() {
     // jumping
     if (movy) SPR_setAnim(sprites[0], ANIM_ROLL);
-    else
-    {
-        if (((movx >= BRAKE_SPEED) && (xorder < 0)) || ((movx <= -BRAKE_SPEED) && (xorder > 0)))
-        {
-            if (sprites[0]->animInd != ANIM_BRAKE)
-            {
+    else {
+        if (((movx >= BRAKE_SPEED) && (xorder < 0)) || ((movx <= -BRAKE_SPEED) && (xorder > 0))) {
+            if (sprites[0]->animInd != ANIM_BRAKE) {
 #ifdef SOUND_ON
                 SND_startPlayPCM_XGM(SFX_STOP, 1, SOUND_PCM_CH2);
 #endif
                 SPR_setAnim(sprites[0], ANIM_BRAKE);
             }
-        }
-        else if ((movx >= RUN_SPEED) || (movx <= -RUN_SPEED))
+        } else if ((movx >= RUN_SPEED) || (movx <= -RUN_SPEED)) {
             SPR_setAnim(sprites[0], ANIM_RUN);
-        else if (movx != 0)
+        } else if (movx != 0) {
             SPR_setAnim(sprites[0], ANIM_WALK);
-        else
-        {
-            if (yorder < 0)
-                SPR_setAnim(sprites[0], ANIM_UP);
-            else if (yorder > 0)
-                SPR_setAnim(sprites[0], ANIM_CROUNCH);
-            else
-                SPR_setAnim(sprites[0], ANIM_STAND);
+        } else {
+            if (yorder < 0) SPR_setAnim(sprites[0], ANIM_UP);
+            else if (yorder > 0) SPR_setAnim(sprites[0], ANIM_CROUNCH);
+            else SPR_setAnim(sprites[0], ANIM_STAND);
         }
     }
 
@@ -310,10 +288,8 @@ static void updateAnim()
     else SPR_setHFlip(sprites[2], FALSE);
 }
 
-static void updateCamera(fix32 x, fix32 y)
-{
-    if ((x != camposx) || (y != camposy))
-    {
+static void updateCamera(fix32 x, fix32 y) {
+    if ((x != camposx) || (y != camposy)) {
         camposx = x;
         camposy = y;
         VDP_setHorizontalScroll(PLAN_A, fix32ToInt(-camposx));
@@ -323,9 +299,7 @@ static void updateCamera(fix32 x, fix32 y)
     }
 }
 
-
-static void handleInput()
-{
+static void handleInput() {
     u16 value = JOY_readJoypad(JOY_1);
 
     if (value & BUTTON_UP) yorder = -1;
@@ -337,18 +311,9 @@ static void handleInput()
     else xorder = 0;
 }
 
-static void joyEvent(u16 joy, u16 changed, u16 state)
-{
-    // START button state changed
-    if (changed & BUTTON_START)
-    {
-
-    }
-
-    if (changed & state & (BUTTON_A | BUTTON_B | BUTTON_C))
-    {
-        if (movy == 0)
-        {
+static void joyEvent(u16 joy, u16 changed, u16 state) {
+    if (changed & state & (BUTTON_A | BUTTON_B | BUTTON_C)) {
+        if (movy == 0) {
             movy = JUMP_SPEED;
 #ifdef SOUND_ON
             SND_startPlayPCM_XGM(SFX_JUMP, 1, SOUND_PCM_CH2);
