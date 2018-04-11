@@ -32,7 +32,8 @@
 #define PLY_POSX		FIX32(88)
 #define MIN_POSX        FIX32(10)
 #define MAX_POSX        FIX32(10000)
-#define MAX_POSY        FIX32(156)
+#define MAX_POSY        FIX32(10)
+#define MIN_POSY        FIX32(156)
 
 
 
@@ -104,7 +105,7 @@ int main() {
     camposx = -1;
     camposy = -1;
     posx = PLY_POSX;
-    posy = MAX_POSY;
+    posy = MIN_POSY;
     movx = FIX32(0);
     movy = FIX32(0);
     xorder = 0;
@@ -172,36 +173,67 @@ int main() {
     return 0;
 }
 
+
+static u8 collidesWith(Sprite* rect_a,Sprite* rect_b) {
+    return rect_a->x < rect_b->x + rect_b->frame[0].w &&
+        rect_a->x + rect_a->frame[0].w > rect_b->x &&
+        rect_a->y < rect_b->y + rect_b->frame[0].h &&
+        rect_a->y + rect_a->frame[0].h > rect_b->y;
+}
+
 static void updatePhysic() {
     u16 i;
+    u8 collides = 0;
     fix32 px_scr, py_scr;
     fix32 npx_cam, npy_cam;
 
+    // enemies physic
+    if (enemyXorder[0] > 0) enemyPosx[0] += FIX32(1.5);
+    else enemyPosx[0] -= FIX32(1.5);
+    if (enemyXorder[1] > 0) enemyPosx[1] += FIX32(1.5);
+    else enemyPosx[1] -= FIX32(1.5);
+
+    for(i = 0; i < 2; i++) {
+        collides = collides || collidesWith(sprites[0], sprites[i+1]);
+
+        if ((enemyPosx[i] >= MAX_POSX) || (enemyPosx[i] <= MIN_POSX)) {
+            enemyXorder[i] = -enemyXorder[i];
+        }
+    }
+
     // sonic physic
-    if (xorder > 0) {
-        movx += ACCEL;
-        // going opposite side, quick breaking
-        if (movx < 0) movx += ACCEL;
-        if (movx >= MAX_SPEED) movx = MAX_SPEED;
-    } else if (xorder < 0) {
-        movx -= ACCEL;
-        // going opposite side, quick breaking
-        if (movx > 0) movx -= ACCEL;
-        if (movx <= -MAX_SPEED) movx = -MAX_SPEED;
+    if (collides) {
+        movy = -movy;
+        movx = -movx;
     } else {
-        if ((movx < FIX32(0.1)) && (movx > FIX32(-0.1))) movx = 0;
-        else if ((movx < FIX32(0.3)) && (movx > FIX32(-0.3))) movx -= movx >> 2;
-        else if ((movx < FIX32(1)) && (movx > FIX32(-1))) movx -= movx >> 3;
-        else movx -= movx >> 4;
+        if (xorder > 0) {
+            movx += ACCEL;
+            // going opposite side, quick breaking
+            if (movx < 0) movx += ACCEL;
+            if (movx >= MAX_SPEED) movx = MAX_SPEED;
+        } else if (xorder < 0) {
+            movx -= ACCEL;
+            // going opposite side, quick breaking
+            if (movx > 0) movx -= ACCEL;
+            if (movx <= -MAX_SPEED) movx = -MAX_SPEED;
+        } else {
+            if ((movx < FIX32(0.1)) && (movx > FIX32(-0.1))) movx = 0;
+            else if ((movx < FIX32(0.3)) && (movx > FIX32(-0.3))) movx -= movx >> 2;
+            else if ((movx < FIX32(1)) && (movx > FIX32(-1))) movx -= movx >> 3;
+            else movx -= movx >> 4;
+        }
     }
 
     posx += movx;
     posy += movy;
 
     if (movy) {
-        if (posy > MAX_POSY) {
-            posy = MAX_POSY;
+        if (posy > MIN_POSY) {
+            posy = MIN_POSY;
             movy = 0;
+        } else if (posy < MAX_POSY) {
+            posy = MAX_POSY;
+            movy += GRAVITY;
         } else movy += GRAVITY;
     }
 
@@ -211,16 +243,6 @@ static void updatePhysic() {
     } else if (posx <= MIN_POSX) {
         posx = MIN_POSX;
         movx = 0;
-    }
-
-    // enemies physic
-    if (enemyXorder[0] > 0) enemyPosx[0] += FIX32(1.5);
-    else enemyPosx[0] -= FIX32(1.5);
-    if (enemyXorder[1] > 0) enemyPosx[1] += FIX32(1.5);
-    else enemyPosx[1] -= FIX32(1.5);
-
-    for(i = 0; i < 2; i++) {
-        if ((enemyPosx[i] >= MAX_POSX) || (enemyPosx[i] <= MIN_POSX)) enemyXorder[i] = -enemyXorder[i];
     }
 
     // get sprite position on screen
