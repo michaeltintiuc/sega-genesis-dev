@@ -12,6 +12,8 @@ You will need the latest Gendev to compile the source and RetroArch to run ROMs
 - [Gendev - MacOS](https://github.com/SONIC3D/gendev-macos/releases)
 - [RetroArch](http://www.retroarch.com/?page=platforms)
 
+SGDK comes with precompiled binaries for Windows
+
 ## Usage
 
 Use the template dir as project base
